@@ -48,9 +48,7 @@
     </div>
   </div>
 
-  <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io();
     const boardEl = document.getElementById('board');
     const playerEl = document.getElementById('player');
     const resetBtn = document.getElementById('reset');
@@ -60,6 +58,7 @@
     let board = Array(9).fill('');
     let current = 'X';
     let scores = { X: 0, O: 0 };
+    let lastWinner = null;
 
     function render(){
       boardEl.innerHTML = '';
@@ -68,51 +67,84 @@
         el.className = 'cell';
         el.dataset.index = i;
         el.textContent = board[i] || '';
-        el.addEventListener('click', () => {
-          socket.emit('move', { index: i });
-        });
+        el.addEventListener('click', () => makeMove(i));
         boardEl.appendChild(el);
       }
     }
 
-    socket.on('connect', () => {
-      console.log('Conectado ao servidor');
-    });
+    async function fetchState(){
+      try {
+        const response = await fetch('/api/jogo');
+        const state = await response.json();
+        board = state.board || Array(9).fill('');
+        current = state.current || 'X';
+        scores = state.scores || { X: 0, O: 0 };
+        playerEl.textContent = current;
+        scoreXEl.textContent = scores.X || 0;
+        scoreOEl.textContent = scores.O || 0;
+        render();
 
-    socket.on('state', (state) => {
-      board = state.board || Array(9).fill('');
-      current = state.current || 'X';
-      scores = state.scores || { X: 0, O: 0 };
-      playerEl.textContent = current;
-      scoreXEl.textContent = scores.X || 0;
-      scoreOEl.textContent = scores.O || 0;
-      render();
+        if (state.winner && state.winner !== lastWinner) {
+          lastWinner = state.winner;
+          if (state.winner === 'draw') alert('Empate!');
+          else alert('Jogador ' + state.winner + ' venceu!');
+        }
 
-      if (state.winner) {
-        if (state.winner === 'draw') alert('Empate!');
-        else alert('Jogador ' + state.winner + ' venceu!');
+        if (!state.winner) {
+          lastWinner = null;
+        }
+      } catch (error) {
+        console.error('Erro ao buscar estado do jogo:', error);
+      }
+    }
+
+    async function makeMove(index) {
+      try {
+        const response = await fetch('/api/jogo/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ index })
+        });
+        const state = await response.json();
+        if (!response.ok) {
+          return alert(state.erro || 'Movimento inválido');
+        }
+        board = state.board;
+        current = state.current;
+        scores = state.scores || { X: 0, O: 0 };
+        playerEl.textContent = current;
+        scoreXEl.textContent = scores.X || 0;
+        scoreOEl.textContent = scores.O || 0;
+        render();
+      } catch (error) {
+        console.error('Erro ao enviar movimento:', error);
+      }
+    }
+
+    resetBtn.addEventListener('click', async () => {
+      if (!confirm('Reiniciar o jogo?')) return;
+      try {
+        const response = await fetch('/api/jogo/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ starter: 'X' })
+        });
+        const state = await response.json();
+        board = state.board;
+        current = state.current;
+        scores = state.scores || { X: 0, O: 0 };
+        playerEl.textContent = current;
+        scoreXEl.textContent = scores.X || 0;
+        scoreOEl.textContent = scores.O || 0;
+        lastWinner = null;
+        render();
+      } catch (error) {
+        console.error('Erro ao resetar jogo:', error);
       }
     });
 
-    resetBtn.addEventListener('click', ()=>{
-      if(confirm('Reiniciar placar também?')){
-        socket.emit('reset', { starter: 'X' });
-        // scoreboard reset handled on server if desired
-      } else {
-        socket.emit('reset', { starter: 'X' });
-      }
-    });
-
-    // solicitar estado inicial
-    fetch('/api/jogo').then(r=>r.json()).then(state=>{
-      board = state.board || Array(9).fill('');
-      current = state.current || 'X';
-      scores = state.scores || { X:0, O:0 };
-      playerEl.textContent = current;
-      scoreXEl.textContent = scores.X || 0;
-      scoreOEl.textContent = scores.O || 0;
-      render();
-    }).catch(()=>{});
+    fetchState();
+    setInterval(fetchState, 1500);
   </script>
 </body>
 </html>

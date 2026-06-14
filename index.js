@@ -1,8 +1,6 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const http = require('http');
-const { Server } = require('socket.io');
 const app = express();
 const PORT = 3000;
 
@@ -94,8 +92,6 @@ app.post('/api/jogo/move', (req, res) => {
   }
 
   saveData();
-  if (typeof io !== 'undefined') io.emit('state', jogoDaVelha);
-
   res.json(jogoDaVelha);
 });
 
@@ -106,7 +102,6 @@ app.post('/api/jogo/reset', (req, res) => {
   jogoDaVelha.current = starter === 'O' ? 'O' : 'X';
   jogoDaVelha.winner = null;
   saveData();
-  if (typeof io !== 'undefined') io.emit('state', jogoDaVelha);
   res.json(jogoDaVelha);
 });
 
@@ -167,51 +162,8 @@ app.delete('/api/tarefas/:id', (req, res) => {
   res.json(tarefa);
 });
 
-// Criar servidor HTTP e Socket.IO para atualizações em tempo real
-const server = http.createServer(app);
-const io = new Server(server);
-
-io.on('connection', (socket) => {
-  console.log('Novo cliente conectado:', socket.id);
-  // enviar estado atual ao novo cliente
-  socket.emit('state', jogoDaVelha);
-
-  socket.on('move', ({ index }) => {
-    try {
-      if (typeof index !== 'number' || index < 0 || index > 8) return;
-      if (jogoDaVelha.winner) return;
-      if (jogoDaVelha.board[index]) return;
-
-      jogoDaVelha.board[index] = jogoDaVelha.current;
-      const result = checkWinner(jogoDaVelha.board);
-      if (result) {
-        jogoDaVelha.winner = result;
-        if (result === 'X' || result === 'O') jogoDaVelha.scores[result] = (jogoDaVelha.scores[result] || 0) + 1;
-      } else {
-        jogoDaVelha.current = jogoDaVelha.current === 'X' ? 'O' : 'X';
-      }
-
-      saveData();
-      io.emit('state', jogoDaVelha);
-    } catch (e) {
-      console.error('Erro ao processar move via socket:', e.message);
-    }
-  });
-
-  socket.on('reset', ({ starter } = {}) => {
-    jogoDaVelha.board = Array(9).fill('');
-    jogoDaVelha.current = starter === 'O' ? 'O' : 'X';
-    jogoDaVelha.winner = null;
-    saveData();
-    io.emit('state', jogoDaVelha);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Cliente desconectado:', socket.id);
-  });
-});
-
-server.listen(PORT, () => {
+// Iniciar servidor normalmente
+app.listen(PORT, () => {
   console.log(`✅ Servidor rodando em http://localhost:${PORT}`);
 });
 

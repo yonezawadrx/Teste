@@ -1,5 +1,5 @@
 # 📝 App de Tarefas com Node.js e Playwright
-
+ 
 Aplicação web simples e funcional para gerenciar tarefas, com testes automatizados usando Playwright.
 
 ## 🎯 Funcionalidades

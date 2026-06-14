@@ -24,8 +24,13 @@
     <h1>Jogo da Velha — Jogar com amigos</h1>
 
     <div class="controls">
-      <div class="status">Vez de: <strong id="player">X</strong></div>
       <div>
+        <div class="status">Vez de: <strong id="player">X</strong></div>
+        <div class="status">Você é: <strong id="playerChoice">Nenhum</strong></div>
+      </div>
+      <div>
+        <button class="btn" onclick="choosePlayer('X')">Jogar como X</button>
+        <button class="btn" onclick="choosePlayer('O')">Jogar como O</button>
         <button class="btn btn-reset" id="reset">Reiniciar</button>
         <a href="/" style="text-decoration:none"><button class="btn btn-back">Voltar</button></a>
       </div>
@@ -59,6 +64,7 @@
     let current = 'X';
     let scores = { X: 0, O: 0 };
     let lastWinner = null;
+    let myPlayer = null;
 
     function render(){
       boardEl.innerHTML = '';
@@ -67,7 +73,12 @@
         el.className = 'cell';
         el.dataset.index = i;
         el.textContent = board[i] || '';
-        el.addEventListener('click', () => makeMove(i));
+        if (!board[i] && myPlayer === current) {
+          el.style.cursor = 'pointer';
+          el.addEventListener('click', () => makeMove(i));
+        } else {
+          el.style.cursor = 'not-allowed';
+        }
         boardEl.appendChild(el);
       }
     }
@@ -99,11 +110,17 @@
     }
 
     async function makeMove(index) {
+      if (!myPlayer) {
+        return alert('Escolha X ou O antes de jogar.');
+      }
+      if (myPlayer !== current) {
+        return alert('Agora não é sua vez. Aguarde o jogador ' + current);
+      }
       try {
         const response = await fetch('/api/jogo/move', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ index })
+          body: JSON.stringify({ index, player: myPlayer })
         });
         const state = await response.json();
         if (!response.ok) {
@@ -142,6 +159,12 @@
         console.error('Erro ao resetar jogo:', error);
       }
     });
+
+    function choosePlayer(player) {
+      myPlayer = player;
+      document.getElementById('playerChoice').textContent = player;
+      render();
+    }
 
     fetchState();
     setInterval(fetchState, 1500);

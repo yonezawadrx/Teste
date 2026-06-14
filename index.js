@@ -10,8 +10,8 @@ app.use(express.json());
 
 // Dados em memória (simples)
 let tarefas = [
-  { id: 1, titulo: 'Comer o cu do Ricardo', concluida: false },
-  { id: 2, titulo: 'Arrombar o vini', concluida: false }
+  { id: 1, titulo: 'Aprender Node.js', concluida: false },
+  { id: 2, titulo: 'Estudar Playwright', concluida: false }
 ];
 
 // File persistence
@@ -70,7 +70,13 @@ app.get('/api/jogo', (req, res) => {
 
 // API - Fazer uma jogada
 app.post('/api/jogo/move', (req, res) => {
-  const { index } = req.body;
+  const { index, player } = req.body;
+  if (!player || (player !== 'X' && player !== 'O')) {
+    return res.status(400).json({ erro: 'Jogador inválido' });
+  }
+  if (player !== jogoDaVelha.current) {
+    return res.status(400).json({ erro: `Não é a vez de ${player}` });
+  }
   if (typeof index !== 'number' || index < 0 || index > 8) {
     return res.status(400).json({ erro: 'Index inválido' });
   }

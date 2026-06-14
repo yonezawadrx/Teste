@@ -48,9 +48,10 @@
     </div>
   </div>
 
+  <script src="/socket.io/socket.io.js"></script>
   <script>
+    const socket = io();
     const boardEl = document.getElementById('board');
-    const cells = Array.from(document.querySelectorAll('.cell'));
     const playerEl = document.getElementById('player');
     const resetBtn = document.getElementById('reset');
     const scoreXEl = document.getElementById('scoreX');
@@ -60,64 +61,58 @@
     let current = 'X';
     let scores = { X: 0, O: 0 };
 
-    // Carregar placar do localStorage
-    try { const s = JSON.parse(localStorage.getItem('ttt-scores')); if (s) scores = s; } catch(e){}
-    scoreXEl.textContent = scores.X; scoreOEl.textContent = scores.O;
-
-    function setStatus(){ playerEl.textContent = current }
-
-    function checkWinner(bd){
-      const wins = [
-        [0,1,2],[3,4,5],[6,7,8],
-        [0,3,6],[1,4,7],[2,5,8],
-        [0,4,8],[2,4,6]
-      ];
-      for(const [a,b,c] of wins){
-        if(bd[a] && bd[a] === bd[b] && bd[a] === bd[c]) return bd[a];
-      }
-      if(bd.every(Boolean)) return 'draw';
-      return null;
-    }
-
     function render(){
-      cells.forEach((el,i)=> el.textContent = board[i]);
-    }
-
-    function saveScores(){ localStorage.setItem('ttt-scores', JSON.stringify(scores)); }
-
-    function handleClick(e){
-      const idx = Number(e.currentTarget.dataset.index);
-      if(board[idx]) return; // já marcado
-      board[idx] = current;
-      render();
-      const result = checkWinner(board);
-      if(result){
-        if(result === 'draw'){
-          alert('Empate!');
-        } else {
-          alert('Jogador ' + result + ' venceu!');
-          scores[result] = (scores[result] || 0) + 1;
-          scoreXEl.textContent = scores.X; scoreOEl.textContent = scores.O;
-          saveScores();
-        }
-        board = Array(9).fill('');
-        render();
-        current = 'X';
-        setStatus();
-        return;
+      boardEl.innerHTML = '';
+      for(let i=0;i<9;i++){
+        const el = document.createElement('div');
+        el.className = 'cell';
+        el.dataset.index = i;
+        el.textContent = board[i] || '';
+        el.addEventListener('click', () => {
+          socket.emit('move', { index: i });
+        });
+        boardEl.appendChild(el);
       }
-      current = current === 'X' ? 'O' : 'X';
-      setStatus();
     }
 
-    cells.forEach(c => c.addEventListener('click', handleClick));
-    resetBtn.addEventListener('click', ()=>{
-      if(confirm('Reiniciar placar também?')){ scores = {X:0,O:0}; saveScores(); scoreXEl.textContent = 0; scoreOEl.textContent = 0 }
-      board = Array(9).fill(''); render(); current = 'X'; setStatus();
+    socket.on('connect', () => {
+      console.log('Conectado ao servidor');
     });
 
-    setStatus();
-    render();
+    socket.on('state', (state) => {
+      board = state.board || Array(9).fill('');
+      current = state.current || 'X';
+      scores = state.scores || { X: 0, O: 0 };
+      playerEl.textContent = current;
+      scoreXEl.textContent = scores.X || 0;
+      scoreOEl.textContent = scores.O || 0;
+      render();
+
+      if (state.winner) {
+        if (state.winner === 'draw') alert('Empate!');
+        else alert('Jogador ' + state.winner + ' venceu!');
+      }
+    });
+
+    resetBtn.addEventListener('click', ()=>{
+      if(confirm('Reiniciar placar também?')){
+        socket.emit('reset', { starter: 'X' });
+        // scoreboard reset handled on server if desired
+      } else {
+        socket.emit('reset', { starter: 'X' });
+      }
+    });
+
+    // solicitar estado inicial
+    fetch('/api/jogo').then(r=>r.json()).then(state=>{
+      board = state.board || Array(9).fill('');
+      current = state.current || 'X';
+      scores = state.scores || { X:0, O:0 };
+      playerEl.textContent = current;
+      scoreXEl.textContent = scores.X || 0;
+      scoreOEl.textContent = scores.O || 0;
+      render();
+    }).catch(()=>{});
   </script>
 </body>
 </html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>App de Tarefas</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      width: 100%;
+      max-width: 500px;
+      padding: 30px;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+      text-align: center;
+      font-size: 28px;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 5px;
+      font-size: 16px;
+      transition: border-color 0.3s;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    button {
+      padding: 12px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background: #764ba2;
+    }
+
+    .tarefas-list {
+      list-style: none;
+    }
+
+    .tarefa-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 5px;
+      margin-bottom: 10px;
+      transition: all 0.3s;
+    }
+
+    .tarefa-item:hover {
+      background: #e9ecef;
+      transform: translateX(5px);
+    }
+
+    .tarefa-item input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+
+    .tarefa-item.concluida {
+      opacity: 0.6;
+    }
+
+    .tarefa-item.concluida span {
+      text-decoration: line-through;
+      color: #999;
+    }
+
+    .tarefa-item span {
+      flex: 1;
+      color: #333;
+      font-size: 16px;
+    }
+
+    .btn-delete {
+      background: #dc3545;
+      padding: 8px 12px;
+      font-size: 14px;
+    }
+
+    .btn-delete:hover {
+      background: #c82333;
+    }
+
+    .vazio {
+      text-align: center;
+      color: #999;
+      padding: 40px 20px;
+      font-size: 16px;
+    }
+
+    .status {
+      text-align: center;
+      color: #667eea;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📝 Minhas Tarefas</h1>
+    
+    <div class="input-group">
+      <input 
+        type="text" 
+        id="novasTarefa" 
+        placeholder="Adicione uma nova tarefa..." 
+        onkeypress="handleKeyPress(event)"
+      >
+      <button onclick="adicionarTarefa()">Adicionar</button>
+    </div>
+
+    <ul id="tarefasList" class="tarefas-list"></ul>
+
+    <div class="status">
+      Total: <span id="totalTarefas">0</span> | Concluídas: <span id="concluidas">0</span>
+    </div>
+  </div>
+
+  <script>
+    // Carregar tarefas ao iniciar
+    document.addEventListener('DOMContentLoaded', carregarTarefas);
+
+    async function carregarTarefas() {
+      try {
+        const response = await fetch('/api/tarefas');
+        const tarefas = await response.json();
+        renderizarTarefas(tarefas);
+      } catch (erro) {
+        console.error('Erro ao carregar tarefas:', erro);
+      }
+    }
+
+    function renderizarTarefas(tarefas) {
+      const lista = document.getElementById('tarefasList');
+      lista.innerHTML = '';
+
+      if (tarefas.length === 0) {
+        lista.innerHTML = '<div class="vazio">Nenhuma tarefa ainda. Adicione uma! 🎯</div>';
+      } else {
+        tarefas.forEach(tarefa => {
+          const li = document.createElement('li');
+          li.className = `tarefa-item ${tarefa.concluida ? 'concluida' : ''}`;
+          li.innerHTML = `
+            <input 
+              type="checkbox" 
+              ${tarefa.concluida ? 'checked' : ''}
+              onchange="atualizarTarefa(${tarefa.id}, this.checked)"
+            >
+            <span>${tarefa.titulo}</span>
+            <button class="btn-delete" onclick="deletarTarefa(${tarefa.id})">Deletar</button>
+          `;
+          lista.appendChild(li);
+        });
+      }
+
+      atualizarContadores(tarefas);
+    }
+
+    function atualizarContadores(tarefas) {
+      document.getElementById('totalTarefas').textContent = tarefas.length;
+      document.getElementById('concluidas').textContent = tarefas.filter(t => t.concluida).length;
+    }
+
+    async function adicionarTarefa() {
+      const input = document.getElementById('novasTarefa');
+      const titulo = input.value.trim();
+
+      if (!titulo) {
+        alert('Digite uma tarefa!');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/tarefas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ titulo })
+        });
+
+        if (response.ok) {
+          input.value = '';
+          carregarTarefas();
+        }
+      } catch (erro) {
+        console.error('Erro ao adicionar tarefa:', erro);
+      }
+    }
+
+    async function atualizarTarefa(id, concluida) {
+      try {
+        await fetch(`/api/tarefas/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ concluida })
+        });
+        carregarTarefas();
+      } catch (erro) {
+        console.error('Erro ao atualizar tarefa:', erro);
+      }
+    }
+
+    async function deletarTarefa(id) {
+      if (confirm('Tem certeza que deseja deletar esta tarefa?')) {
+        try {
+          await fetch(`/api/tarefas/${id}`, { method: 'DELETE' });
+          carregarTarefas();
+        } catch (erro) {
+          console.error('Erro ao deletar tarefa:', erro);
+        }
+      }
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === 'Enter') {
+        adicionarTarefa();
+      }
+    }
+  </script>
+</body>
+</html>
